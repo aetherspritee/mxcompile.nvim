@@ -208,9 +208,9 @@ end
 function M.repeat_last(opts)
     local last = history.get_last()
     if last then
-        M.run(last, opts)
+        M.run(last, opts or last_opts)
     else
-        M.compile(nil, opts)
+        M.compile(nil, opts or last_opts)
     end
 end
 
