@@ -60,67 +60,83 @@ function M.append_to_buffer(data)
 end
 
 local function setup_window(opts)
-    opts = opts or {}
-    local win_config = vim.tbl_deep_extend("force", config.options.window, opts.window or {})
+  opts = opts or {}
+  local win_config = vim.tbl_deep_extend("force", config.options.window, opts.window or {})
 
-    if output_buf and vim.api.nvim_buf_is_valid(output_buf) then
-        -- Reuse buffer but clear it
-        vim.api.nvim_buf_set_lines(output_buf, 0, -1, false, {})
+  if output_buf and vim.api.nvim_buf_is_valid(output_buf) then
+    -- Reuse buffer but clear it
+    vim.api.nvim_buf_set_lines(output_buf, 0, -1, false, {})
+  else
+    output_buf = vim.api.nvim_create_buf(false, true) -- listed=false, scratch=true
+    vim.api.nvim_buf_set_name(output_buf, "*compile*")
+    vim.api.nvim_set_option_value("buftype", "nofile", { buf = output_buf })
+    vim.api.nvim_set_option_value("bufhidden", "wipe", { buf = output_buf })
+    vim.api.nvim_set_option_value("swapfile", false, { buf = output_buf })
+    vim.api.nvim_set_option_value("buflisted", false, { buf = output_buf })
+    vim.api.nvim_set_option_value("filetype", "mxcompile", { buf = output_buf })
+  end
+
+  -- Set window-local options for a clean terminal-like look
+  local function apply_win_options(win)
+    vim.api.nvim_set_option_value("number", false, { win = win })
+    vim.api.nvim_set_option_value("relativenumber", false, { win = win })
+    vim.api.nvim_set_option_value("signcolumn", "no", { win = win })
+    vim.api.nvim_set_option_value("foldcolumn", "0", { win = win })
+    vim.api.nvim_set_option_value("list", false, { win = win })
+    vim.api.nvim_set_option_value("fillchars", "eob: ", { win = win })
+  end
+
+  -- Reuse window if it's valid and matches the requested type
+  if output_win and vim.api.nvim_win_is_valid(output_win) then
+    local win_cfg = vim.api.nvim_win_get_config(output_win)
+    local is_float = win_cfg.relative ~= ""
+    local want_float = win_config.type == "float"
+    
+    if is_float == want_float then
+      vim.api.nvim_win_set_buf(output_win, output_buf)
+      apply_win_options(output_win)
+      return output_buf, output_win
     else
-        output_buf = vim.api.nvim_create_buf(false, true) -- listed=false, scratch=true
-        vim.api.nvim_buf_set_name(output_buf, "*compile*")
-        vim.api.nvim_set_option_value("buftype", "nofile", { buf = output_buf })
-        vim.api.nvim_set_option_value("bufhidden", "wipe", { buf = output_buf })
-        vim.api.nvim_set_option_value("swapfile", false, { buf = output_buf })
-        vim.api.nvim_set_option_value("buflisted", false, { buf = output_buf })
-        vim.api.nvim_set_option_value("filetype", "mxcompile", { buf = output_buf })
+      -- Type changed (e.g. from float to split), close old window
+      vim.api.nvim_win_close(output_win, true)
     end
+  end
 
-    -- Set window-local options for a clean terminal-like look
-    local function apply_win_options(win)
-        vim.api.nvim_set_option_value("number", false, { win = win })
-        vim.api.nvim_set_option_value("relativenumber", false, { win = win })
-        vim.api.nvim_set_option_value("signcolumn", "no", { win = win })
-        vim.api.nvim_set_option_value("foldcolumn", "0", { win = win })
-        vim.api.nvim_set_option_value("list", false, { win = win })
-        vim.api.nvim_set_option_value("fillchars", "eob: ", { win = win })
+  -- Set temporary keymaps
+  local km_opts = { buffer = output_buf, noremap = true, silent = true }
+  vim.keymap.set("n", config.options.close_keymap, function()
+    if output_win and vim.api.nvim_win_is_valid(output_win) then
+      vim.api.nvim_win_close(output_win, true)
     end
+  end, km_opts)
 
-    -- Set temporary keymaps
-    local km_opts = { buffer = output_buf, noremap = true, silent = true }
-    vim.keymap.set("n", config.options.close_keymap, function()
-        if output_win and vim.api.nvim_win_is_valid(output_win) then
-            vim.api.nvim_win_close(output_win, true)
-        end
-    end, km_opts)
+  vim.keymap.set("n", config.options.promote_keymap, function()
+    M.promote_window()
+  end, km_opts)
 
-    vim.keymap.set("n", config.options.promote_keymap, function()
-        M.promote_window()
-    end, km_opts)
+  -- Window creation
+  local win_type = win_config.type
+  if win_type == "float" then
+    local width = math.floor(vim.o.columns * win_config.float.width)
+    local height = math.floor(vim.o.lines * win_config.float.height)
+    output_win = vim.api.nvim_open_win(output_buf, true, {
+      relative = "editor",
+      width = width,
+      height = height,
+      row = math.floor((vim.o.lines - height) / 2),
+      col = math.floor((vim.o.columns - width) / 2),
+      border = win_config.float.border,
+    })
+  else
+    local split_cmd = win_type == "vsplit" and "vsplit" or "split"
+    local size = win_type == "vsplit" and (win_config.vsize or 50) or win_config.size
+    vim.cmd(size .. split_cmd)
+    output_win = vim.api.nvim_get_current_win()
+    vim.api.nvim_win_set_buf(output_win, output_buf)
+  end
 
-    -- Window creation
-    local win_type = win_config.type
-    if win_type == "float" then
-        local width = math.floor(vim.o.columns * win_config.float.width)
-        local height = math.floor(vim.o.lines * win_config.float.height)
-        output_win = vim.api.nvim_open_win(output_buf, true, {
-            relative = "editor",
-            width = width,
-            height = height,
-            row = math.floor((vim.o.lines - height) / 2),
-            col = math.floor((vim.o.columns - width) / 2),
-            border = win_config.float.border,
-        })
-    else
-        local split_cmd = win_type == "vsplit" and "vsplit" or "split"
-        local size = win_type == "vsplit" and (win_config.vsize or 50) or win_config.size
-        vim.cmd(size .. split_cmd)
-        output_win = vim.api.nvim_get_current_win()
-        vim.api.nvim_win_set_buf(output_win, output_buf)
-    end
-
-    apply_win_options(output_win)
-    return output_buf, output_win
+  apply_win_options(output_win)
+  return output_buf, output_win
 end
 
 function M.promote_window()
@@ -180,10 +196,11 @@ end
 function M.run(cmd, opts)
     M.interrupt() -- Kill any existing job
     history.add(cmd)
+    if opts then last_opts = opts end
 
     local expanded_cmd = expand_macros(cmd)
 
-    setup_window(opts)
+    setup_window(last_opts)
     M.append_to_buffer("Command: " .. expanded_cmd .. "\n\n")
 
     active_job = vim.system({ "sh", "-c", expanded_cmd }, {
@@ -252,7 +269,7 @@ function M.show_history()
             prompt = "Compile History:",
         }, function(choice)
             if choice then
-                M.run(choice)
+                M.run(choice, last_opts)
             end
         end)
     end
