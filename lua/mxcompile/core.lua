@@ -83,6 +83,7 @@ local function setup_window(opts)
     vim.api.nvim_set_option_value("signcolumn", "no", { win = win })
     vim.api.nvim_set_option_value("foldcolumn", "0", { win = win })
     vim.api.nvim_set_option_value("list", false, { win = win })
+    vim.api.nvim_set_option_value("fillchars", "eob: ", { win = win })
   end
 
   -- Set temporary keymaps
@@ -132,6 +133,31 @@ function M.promote_window()
   -- Change bufhidden so it's not wiped and make it listed
   vim.api.nvim_set_option_value("bufhidden", "hide", { buf = output_buf })
   vim.api.nvim_set_option_value("buflisted", true, { buf = output_buf })
+
+  -- If it's a floating window, close it and open as vsplit
+  if output_win and vim.api.nvim_win_is_valid(output_win) then
+    local win_cfg = vim.api.nvim_win_get_config(output_win)
+    if win_cfg.relative ~= "" then
+      vim.api.nvim_win_close(output_win, true)
+      
+      -- Open as vsplit using config vsize
+      local vsize = config.options.window.vsize or 50
+      vim.cmd(vsize .. "vsplit")
+      output_win = vim.api.nvim_get_current_win()
+      vim.api.nvim_win_set_buf(output_win, output_buf)
+      
+      -- Re-apply clean UI options to the new split window
+      local function apply_win_options(win)
+        vim.api.nvim_set_option_value("number", false, { win = win })
+        vim.api.nvim_set_option_value("relativenumber", false, { win = win })
+        vim.api.nvim_set_option_value("signcolumn", "no", { win = win })
+        vim.api.nvim_set_option_value("foldcolumn", "0", { win = win })
+        vim.api.nvim_set_option_value("list", false, { win = win })
+        vim.api.nvim_set_option_value("fillchars", "eob: ", { win = win })
+      end
+      apply_win_options(output_win)
+    end
+  end
   
   vim.notify("Compilation window promoted to permanent.", vim.log.levels.INFO)
 end
