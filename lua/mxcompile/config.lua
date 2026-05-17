@@ -15,7 +15,8 @@ M.defaults = {
   },
   window = {
     type = "split", -- "split", "vsplit", or "float"
-    size = 15,      -- height for split, width for vsplit
+    size = 15,      -- height for split
+    vsize = 50,     -- width for vsplit
     float = {
       width = 0.8,
       height = 0.8,

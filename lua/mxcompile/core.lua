@@ -73,6 +73,16 @@ local function setup_window(opts)
     vim.api.nvim_set_option_value("bufhidden", "wipe", { buf = output_buf })
     vim.api.nvim_set_option_value("swapfile", false, { buf = output_buf })
     vim.api.nvim_set_option_value("buflisted", false, { buf = output_buf })
+    vim.api.nvim_set_option_value("filetype", "mxcompile", { buf = output_buf })
+  end
+
+  -- Set window-local options for a clean terminal-like look
+  local function apply_win_options(win)
+    vim.api.nvim_set_option_value("number", false, { win = win })
+    vim.api.nvim_set_option_value("relativenumber", false, { win = win })
+    vim.api.nvim_set_option_value("signcolumn", "no", { win = win })
+    vim.api.nvim_set_option_value("foldcolumn", "0", { win = win })
+    vim.api.nvim_set_option_value("list", false, { win = win })
   end
 
   -- Set temporary keymaps
@@ -102,11 +112,13 @@ local function setup_window(opts)
     })
   else
     local split_cmd = win_type == "vsplit" and "vsplit" or "split"
-    vim.cmd(win_config.size .. split_cmd)
+    local size = win_type == "vsplit" and (win_config.vsize or 50) or win_config.size
+    vim.cmd(size .. split_cmd)
     output_win = vim.api.nvim_get_current_win()
     vim.api.nvim_win_set_buf(output_win, output_buf)
   end
 
+  apply_win_options(output_win)
   return output_buf, output_win
 end
 
