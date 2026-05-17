@@ -7,14 +7,20 @@ local active_job = nil
 local output_buf = nil
 local output_win = nil
 
+local function expand_macros(cmd)
+  if not cmd or cmd == "" then return "" end
+  -- Expand %, %:r, %:p, etc.
+  -- We use a greedy match for % followed by optional modifiers.
+  return (cmd:gsub("%%[:%a]*", function(m)
+    local expanded = vim.fn.expand(m)
+    return (expanded and expanded ~= "") and expanded or m
+  end))
+end
+
 local function get_default_cmd()
   local ft = vim.bo.filetype
   local cmd = config.options.commands[ft] or ""
-  if cmd ~= "" then
-    -- Expand macros like %
-    cmd = vim.fn.expand(cmd)
-  end
-  return cmd
+  return expand_macros(cmd)
 end
 
 function M.interrupt()
@@ -139,10 +145,12 @@ function M.run(cmd, opts)
   M.interrupt() -- Kill any existing job
   history.add(cmd)
   
+  local expanded_cmd = expand_macros(cmd)
+  
   setup_window(opts)
-  M.append_to_buffer("Command: " .. cmd .. "\n\n")
+  M.append_to_buffer("Command: " .. expanded_cmd .. "\n\n")
 
-  active_job = vim.system({"sh", "-c", cmd}, {
+  active_job = vim.system({"sh", "-c", expanded_cmd}, {
     stdout = function(err, data)
       if data then
         vim.schedule(function() M.append_to_buffer(data) end)
@@ -181,10 +189,14 @@ function M.show_history()
   local has_snacks, snacks = pcall(require, "snacks")
   if has_snacks and snacks.picker then
     snacks.picker.pick({
-      source = "compile_history",
+      title = "Compile History",
       items = vim.tbl_map(function(item)
         return { text = item, value = item }
       end, items),
+      format = "text",
+      layout = {
+        preset = "select",
+      },
       confirm = function(picker, item)
         picker:close()
         M.run(item.value)
