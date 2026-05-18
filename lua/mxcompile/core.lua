@@ -24,8 +24,8 @@ local function get_default_cmd()
 end
 
 function M.interrupt()
-    if active_job then
-        active_job:kill(15) -- SIGTERM
+    if active_job and active_job > 0 then
+        vim.fn.jobstop(active_job)
         M.append_to_buffer("\n--- INTERRUPTED ---\n")
         active_job = nil
     end
@@ -102,7 +102,7 @@ local function setup_window(opts)
     end
   end
 
-  -- Set temporary keymaps
+  -- Set temporary keymaps and autocommands
   local km_opts = { buffer = output_buf, noremap = true, silent = true }
   vim.keymap.set("n", config.options.close_keymap, function()
     if output_win and vim.api.nvim_win_is_valid(output_win) then
@@ -113,6 +113,15 @@ local function setup_window(opts)
   vim.keymap.set("n", config.options.promote_keymap, function()
     M.promote_window()
   end, km_opts)
+
+  -- Auto-interrupt when window is closed
+  vim.api.nvim_create_autocmd("WinClosed", {
+    buffer = output_buf,
+    once = true,
+    callback = function()
+      M.interrupt()
+    end,
+  })
 
   -- Window creation
   local win_type = win_config.type
@@ -271,6 +280,12 @@ function M.show_history()
             if choice then
                 M.run(choice, last_opts)
             end
+        end)
+    end
+end
+
+return M
+
         end)
     end
 end
