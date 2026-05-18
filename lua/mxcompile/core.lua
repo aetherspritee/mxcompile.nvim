@@ -194,7 +194,29 @@ function M.compile(cmd, opts)
     vim.ui.input({
       prompt = "Compile command: ",
       default = default,
-      completion = "shellcmd",
+      completion = function(arglead)
+        local hist = history.get_all()
+        local res = {}
+        local seen = {}
+
+        -- Add matching items from history first
+        for _, item in ipairs(hist) do
+          if item:find(arglead, 1, true) and not seen[item] then
+            table.insert(res, item)
+            seen[item] = true
+          end
+        end
+
+        -- Then add shell command completions
+        local shell = vim.fn.getcompletion(arglead, "shellcmd")
+        for _, item in ipairs(shell) do
+          if not seen[item] then
+            table.insert(res, item)
+            seen[item] = true
+          end
+        end
+        return res
+      end,
     }, function(input)
       if input and input ~= "" then
         M.run(input, opts)
