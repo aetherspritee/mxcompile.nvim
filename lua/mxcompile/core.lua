@@ -216,25 +216,16 @@ function M.run(cmd, opts)
   M.append_to_buffer("Command: " .. expanded_cmd .. "\n\n")
 
   active_job = vim.fn.jobstart(expanded_cmd, {
-    stdout_buffered = false,
-    stderr_buffered = false,
+    pty = true,
     on_stdout = function(_, data)
       if data then
         vim.schedule(function()
-          for _, line in ipairs(data) do
-            if line ~= "" then
-              M.append_to_buffer(line .. "\n")
-            end
-          end
-        end)
-      end
-    end,
-    on_stderr = function(_, data)
-      if data then
-        vim.schedule(function()
-          for _, line in ipairs(data) do
-            if line ~= "" then
-              M.append_to_buffer(line .. "\n")
+          for i, line in ipairs(data) do
+            local clean_line = line:gsub("\r", "")
+            if i < #data then
+              M.append_to_buffer(clean_line .. "\n")
+            elseif clean_line ~= "" then
+              M.append_to_buffer(clean_line)
             end
           end
         end)

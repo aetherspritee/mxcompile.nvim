@@ -1,18 +1,19 @@
 local M = {}
 
 M.defaults = {
-    commands = {
-        go = "go run %",
-        python = "python %",
-        rust = "cargo run",
-        cpp = "g++ % -o %:r && ./%:r",
-        c = "gcc % -o %:r && ./%:r",
-        make = "make",
-        sh = "bash %",
-        lua = "lua %",
-        javascript = "node %",
-        typescript = "ts-node %",
-    },
+  commands = {
+    go = "go run %",
+    python = "python %",
+    rust = "cargo run",
+    cpp = "g++ % -o %:r && ./%:r",
+    c = "gcc % -o %:r && ./%:r",
+    make = "make",
+    sh = "bash %",
+    lua = "lua %",
+    javascript = "node %",
+    typescript = "ts-node %",
+  },
+
     window = {
         type = "split", -- "split", "vsplit", or "float"
         size = 15,  -- height for split
