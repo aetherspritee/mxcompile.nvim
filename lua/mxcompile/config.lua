@@ -28,6 +28,7 @@ M.defaults = {
     promote_keymap = "<C-p>", -- Promotes window to permanent
     completion_next_keymap = "<C-j>",
     completion_prev_keymap = "<C-k>",
+    ansi_rendering = true,
 }
 
 M.options = {}

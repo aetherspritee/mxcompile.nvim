@@ -6,6 +6,7 @@ local M = {}
 local active_job = nil
 local output_buf = nil
 local output_win = nil
+local terminal_chan = nil
 local last_opts = {}
 
 local function expand_macros(cmd)
@@ -37,20 +38,29 @@ function M.append_to_buffer(data)
     return
   end
 
-  local lines = vim.split(data, "\n", { plain = true })
-  local last_line_idx = vim.api.nvim_buf_line_count(output_buf)
-  local last_line_content = vim.api.nvim_buf_get_lines(output_buf, last_line_idx - 1, last_line_idx, false)[1] or ""
-
-  -- Append first chunk to the last existing line
-  vim.api.nvim_buf_set_lines(output_buf, last_line_idx - 1, last_line_idx, false, { last_line_content .. lines[1] })
-
-  -- Add subsequent lines
-  if #lines > 1 then
-    local remaining = {}
-    for i = 2, #lines do
-      table.insert(remaining, lines[i])
+  if config.options.ansi_rendering then
+    if not terminal_chan then
+      terminal_chan = vim.api.nvim_open_term(output_buf, {})
     end
-    vim.api.nvim_buf_set_lines(output_buf, last_line_idx, last_line_idx, false, remaining)
+    -- nvim_open_term expects \r\n for newlines
+    local processed = data:gsub("\r\n", "\n"):gsub("\n", "\r\n")
+    vim.api.nvim_chan_send(terminal_chan, processed)
+  else
+    local lines = vim.split(data, "\n", { plain = true })
+    local last_line_idx = vim.api.nvim_buf_line_count(output_buf)
+    local last_line_content = vim.api.nvim_buf_get_lines(output_buf, last_line_idx - 1, last_line_idx, false)[1] or ""
+
+    -- Append first chunk to the last existing line
+    vim.api.nvim_buf_set_lines(output_buf, last_line_idx - 1, last_line_idx, false, { last_line_content .. lines[1] })
+
+    -- Add subsequent lines
+    if #lines > 1 then
+      local remaining = {}
+      for i = 2, #lines do
+        table.insert(remaining, lines[i])
+      end
+      vim.api.nvim_buf_set_lines(output_buf, last_line_idx, last_line_idx, false, remaining)
+    end
   end
 
   -- Scroll to end
@@ -67,6 +77,7 @@ local function setup_window(opts)
   if output_buf and vim.api.nvim_buf_is_valid(output_buf) then
     -- Reuse buffer but clear it
     vim.api.nvim_buf_set_lines(output_buf, 0, -1, false, {})
+    terminal_chan = nil
   else
     output_buf = vim.api.nvim_create_buf(false, true) -- listed=false, scratch=true
     vim.api.nvim_buf_set_name(output_buf, "*compile*")
@@ -228,12 +239,17 @@ function M.run(cmd, opts)
     on_stdout = function(_, data)
       if data then
         vim.schedule(function()
-          for i, line in ipairs(data) do
-            local clean_line = line:gsub("\r", "")
-            if i < #data then
-              M.append_to_buffer(clean_line .. "\n")
-            elseif clean_line ~= "" then
-              M.append_to_buffer(clean_line)
+          if config.options.ansi_rendering then
+            local combined = table.concat(data, "\n")
+            M.append_to_buffer(combined)
+          else
+            for i, line in ipairs(data) do
+              local clean_line = line:gsub("\r", "")
+              if i < #data then
+                M.append_to_buffer(clean_line .. "\n")
+              elseif clean_line ~= "" then
+                M.append_to_buffer(clean_line)
+              end
             end
           end
         end)
