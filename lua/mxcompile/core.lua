@@ -44,7 +44,12 @@ function M.append_to_buffer(data)
     end
     -- nvim_open_term expects \r\n for newlines
     local processed = data:gsub("\r\n", "\n"):gsub("\n", "\r\n")
-    vim.api.nvim_chan_send(terminal_chan, processed)
+    local success = pcall(vim.api.nvim_chan_send, terminal_chan, processed)
+    if not success then
+      -- Channel might be invalid, try once more with a new channel
+      terminal_chan = vim.api.nvim_open_term(output_buf, {})
+      pcall(vim.api.nvim_chan_send, terminal_chan, processed)
+    end
   else
     local lines = vim.split(data, "\n", { plain = true })
     local last_line_idx = vim.api.nvim_buf_line_count(output_buf)
@@ -77,6 +82,9 @@ local function setup_window(opts)
   if output_buf and vim.api.nvim_buf_is_valid(output_buf) then
     -- Reuse buffer but clear it
     vim.api.nvim_buf_set_lines(output_buf, 0, -1, false, {})
+    if terminal_chan then
+      pcall(vim.fn.chanclose, terminal_chan)
+    end
     terminal_chan = nil
   else
     output_buf = vim.api.nvim_create_buf(false, true) -- listed=false, scratch=true
