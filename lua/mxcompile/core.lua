@@ -207,13 +207,23 @@ function M.promote_window()
   vim.notify("Compilation window promoted to permanent.", vim.log.levels.INFO)
 end
 
+function M.complete(arg_lead, cmd_line, cursor_pos)
+  local cmd_before_cursor = cmd_line:sub(1, cursor_pos)
+  local trimmed = cmd_before_cursor:gsub("^%s+", "")
+  if not trimmed:find("%s") then
+    return vim.fn.getcompletion(arg_lead, "shellcmd")
+  else
+    return vim.fn.getcompletion(arg_lead, "file")
+  end
+end
+
 function M.compile(cmd, opts)
   if not cmd or cmd == "" then
     local default = get_default_cmd()
     vim.ui.input({
       prompt = "Compile command: ",
       default = default,
-      completion = "shellcmd", -- Simplified to let Neovim handle completion logic
+      completion = "customlist,v:lua.require'mxcompile.core'.complete",
     }, function(input)
       if input and input ~= "" then
         M.run(input, opts)
@@ -231,6 +241,7 @@ function M.compile(cmd, opts)
     M.run(cmd, opts)
   end
 end
+
 
 function M.run(cmd, opts)
   M.interrupt() -- Kill any existing job
