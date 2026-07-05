@@ -208,14 +208,24 @@ function M.promote_window()
 end
 
 function M.complete(arg_lead, cmd_line, cursor_pos)
-  local cmd_before_cursor = cmd_line:sub(1, cursor_pos)
-  local trimmed = cmd_before_cursor:gsub("^%s+", "")
-  if not trimmed:find("%s") then
-    return vim.fn.getcompletion(arg_lead, "shellcmd")
-  else
-    return vim.fn.getcompletion(arg_lead, "file")
+  local prefix, last_word = arg_lead:match("^(.*%s)(%S*)$")
+  if not prefix then
+    prefix = ""
+    last_word = arg_lead
   end
+
+  local matches
+  if prefix == "" then
+    matches = vim.fn.getcompletion(last_word, "shellcmd")
+  else
+    matches = vim.fn.getcompletion(last_word, "file")
+  end
+
+  return vim.tbl_map(function(val)
+    return prefix .. val
+  end, matches)
 end
+
 
 function M.compile(cmd, opts)
   if not cmd or cmd == "" then
