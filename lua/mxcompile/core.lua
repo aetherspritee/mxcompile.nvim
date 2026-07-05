@@ -208,22 +208,70 @@ function M.promote_window()
 end
 
 function M.complete(arg_lead, cmd_line, cursor_pos)
-  local cmd_before_cursor = cmd_line:sub(1, cursor_pos)
-  local trimmed = cmd_before_cursor:gsub("^%s+", "")
-  local is_first_word = not trimmed:find("%s")
+  local success, err_msg = pcall(function()
+    if vim.fn.mode() ~= "c" then
+      cmd_line = vim.api.nvim_get_current_line()
+      cursor_pos = vim.api.nvim_win_get_cursor(0)[2] + 1
+    end
 
-  if arg_lead:find("%s") then
-    local prefix, last_word = arg_lead:match("^(.*%s)(%S*)$")
-    if prefix then
-      local matches = vim.fn.getcompletion(last_word, is_first_word and "shellcmd" or "file")
-      return vim.tbl_map(function(val)
-        return prefix .. val
-      end, matches)
+    local cmd_before_cursor = cmd_line:sub(1, cursor_pos)
+    local trimmed = cmd_before_cursor:gsub("^%s+", "")
+    local is_first_word = not trimmed:find("%s")
+
+    local log_data = {
+      mode = vim.fn.mode(),
+      arg_lead = arg_lead,
+      cmd_line = cmd_line,
+      cursor_pos = cursor_pos,
+      is_first_word = is_first_word,
+      cwd = vim.fn.getcwd(),
+    }
+
+    local result
+    if arg_lead:find("%s") then
+      local prefix, last_word = arg_lead:match("^(.*%s)(%S*)$")
+      log_data.branch = "has_spaces"
+      log_data.prefix = prefix
+      log_data.last_word = last_word
+      if prefix then
+        local matches = vim.fn.getcompletion(last_word, is_first_word and "shellcmd" or "file")
+        log_data.matches = matches
+        result = vim.tbl_map(function(val)
+          return prefix .. val
+        end, matches)
+      else
+        result = {}
+      end
+    else
+      log_data.branch = "no_spaces"
+      local matches = vim.fn.getcompletion(arg_lead, is_first_word and "shellcmd" or "file")
+      log_data.matches = matches
+      result = matches
+    end
+
+    log_data.result = result
+
+    local log_file = io.open(vim.fn.expand("~/.mxcompile_debug.log"), "a")
+    if log_file then
+      log_file:write(vim.inspect(log_data) .. "\n---\n")
+      log_file:close()
+    end
+  end)
+
+  if not success then
+    local log_file = io.open(vim.fn.expand("~/.mxcompile_debug.log"), "a")
+    if log_file then
+      log_file:write("ERROR: " .. tostring(err_msg) .. "\n---\n")
+      log_file:close()
     end
   end
 
-  return vim.fn.getcompletion(arg_lead, is_first_word and "shellcmd" or "file")
+  -- Fallback to default Neovim shellcmd completion if error or no matches
+  return vim.fn.getcompletion(arg_lead, "shellcmd")
 end
+
+
+
 
 
 
