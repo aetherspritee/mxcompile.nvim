@@ -79,22 +79,26 @@ local function setup_window(opts)
   opts = opts or {}
   local win_config = vim.tbl_deep_extend("force", config.options.window, opts.window or {})
 
-  if output_buf and vim.api.nvim_buf_is_valid(output_buf) then
-    -- Reuse buffer but clear it
-    vim.api.nvim_buf_set_lines(output_buf, 0, -1, false, {})
-    if terminal_chan then
-      pcall(vim.fn.chanclose, terminal_chan)
-    end
-    terminal_chan = nil
-  else
-    output_buf = vim.api.nvim_create_buf(false, true) -- listed=false, scratch=true
-    vim.api.nvim_buf_set_name(output_buf, "*compile*")
-    vim.api.nvim_set_option_value("buftype", "nofile", { buf = output_buf })
-    vim.api.nvim_set_option_value("bufhidden", "wipe", { buf = output_buf })
-    vim.api.nvim_set_option_value("swapfile", false, { buf = output_buf })
-    vim.api.nvim_set_option_value("buflisted", false, { buf = output_buf })
-    vim.api.nvim_set_option_value("filetype", "mxcompile", { buf = output_buf })
+  if output_win and vim.api.nvim_win_is_valid(output_win) then
+    pcall(vim.api.nvim_win_close, output_win, true)
+    output_win = nil
   end
+  if output_buf and vim.api.nvim_buf_is_valid(output_buf) then
+    pcall(vim.api.nvim_buf_delete, output_buf, { force = true })
+    output_buf = nil
+  end
+  if terminal_chan then
+    pcall(vim.fn.chanclose, terminal_chan)
+    terminal_chan = nil
+  end
+
+  output_buf = vim.api.nvim_create_buf(false, true) -- listed=false, scratch=true
+  vim.api.nvim_buf_set_name(output_buf, "*compile*")
+  vim.api.nvim_set_option_value("buftype", "nofile", { buf = output_buf })
+  vim.api.nvim_set_option_value("bufhidden", "wipe", { buf = output_buf })
+  vim.api.nvim_set_option_value("swapfile", false, { buf = output_buf })
+  vim.api.nvim_set_option_value("buflisted", false, { buf = output_buf })
+  vim.api.nvim_set_option_value("filetype", "mxcompile", { buf = output_buf })
 
   -- Set window-local options for a clean terminal-like look
   local function apply_win_options(win)
@@ -104,22 +108,6 @@ local function setup_window(opts)
     vim.api.nvim_set_option_value("foldcolumn", "0", { win = win })
     vim.api.nvim_set_option_value("list", false, { win = win })
     vim.api.nvim_set_option_value("fillchars", "eob: ", { win = win })
-  end
-
-  -- Reuse window if it's valid and matches the requested type
-  if output_win and vim.api.nvim_win_is_valid(output_win) then
-    local win_cfg = vim.api.nvim_win_get_config(output_win)
-    local is_float = win_cfg.relative ~= ""
-    local want_float = win_config.type == "float"
-
-    if is_float == want_float then
-      vim.api.nvim_win_set_buf(output_win, output_buf)
-      apply_win_options(output_win)
-      return output_buf, output_win
-    else
-      -- Type changed (e.g. from float to split), close old window
-      vim.api.nvim_win_close(output_win, true)
-    end
   end
 
   -- Set temporary keymaps and autocommands
@@ -203,6 +191,10 @@ function M.promote_window()
       apply_win_options(output_win)
     end
   end
+
+  output_buf = nil
+  output_win = nil
+  terminal_chan = nil
 
   vim.notify("Compilation window promoted to permanent.", vim.log.levels.INFO)
 end
